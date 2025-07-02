@@ -9,6 +9,5 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copiar todo el código de la aplicación
 COPY . .
 
-# Comando para ejecutar el trainer de la Cloud (simularemos su ejecución con un script)
-# Similar al Fog, esto es un placeholder.
-CMD ["python", "cloud_node/trainer.py"] # Este comando es un placeholder por ahora
+# Comando para ejecutar el trainer de la Cloud 
+CMD ["python", "scripts/run_cloud_trainer_init_and_loop.py"]

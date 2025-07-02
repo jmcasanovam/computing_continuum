@@ -1,5 +1,7 @@
 from pydantic import BaseModel
 from datetime import datetime
+from typing import Union
+
 
 class TicWatchData(BaseModel):
     session_id: str
@@ -16,4 +18,5 @@ class TicWatchData(BaseModel):
     tic_hrppg: float
     tic_step: int
     ticwatchconnected: bool = True
-    estado_real: str | None = None
+    estado_real: Union[str, None] = None
+    predicted_state: Union[str, None] = None

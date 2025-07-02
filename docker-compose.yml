@@ -32,9 +32,7 @@ services:
       dockerfile: ./cloud_node/Dockerfile
     volumes:
       - ./data:/app/data
-    # No hay 'networks' aquí
-    # Comando modificado para verificar y generar el modelo inicial si es necesario
-    command: bash -c "python scripts/run_cloud_trainer_init_and_loop.py"
+    command: python -m scripts.run_cloud_trainer_init_and_loop
     healthcheck: # Un healthcheck para indicar que el modelo inicial está generado
       test: ["CMD-SHELL", "test -f /app/data/models/generic_activity_model.pkl && test -f /app/data/database/app_database.db"]
       interval: 10s
