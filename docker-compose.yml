@@ -1,0 +1,62 @@
+services:
+  # Servicio del Nodo Edge
+  edge_service:
+    build:
+      context: .
+      dockerfile: ./edge_node/Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      # Monta la carpeta 'data' del host al '/app/data' dentro del contenedor.
+      # Esto permite que los modelos y la DB persistan y sean compartidos.
+      - ./data:/app/data
+    environment:
+      EDGE_NODE_ID: "edge_node_instance_1"
+      # Para la comunicación interna en la misma máquina Docker Compose,
+      # el Edge se conectará al host del servicio de la DB.
+      # Si la DB estuviera en un contenedor separado, aquí iría su nombre de servicio.
+      # Para SQLite, el Edge accede directamente al volumen.
+      # Para una DB externa, aquí iría la IP/hostname de la DB.
+    # No hay 'networks' aquí
+    depends_on:
+      # Dependencia lógica para asegurar que el Cloud Trainer tiene la oportunidad
+      # de inicializar el modelo genérico y la DB antes de que el Edge lo use.
+      # Esto no implica que estén en la misma máquina o red de Docker.
+      cloud_trainer:
+        condition: service_healthy # Esperar a que cloud_trainer esté "sano" (modelo inicializado)
+
+  # Servicio del Trainer de la Cloud (para el modelo genérico)
+  cloud_trainer:
+    build:
+      context: .
+      dockerfile: ./cloud_node/Dockerfile
+    volumes:
+      - ./data:/app/data
+    # No hay 'networks' aquí
+    # Comando modificado para verificar y generar el modelo inicial si es necesario
+    command: bash -c "python scripts/run_cloud_trainer_init_and_loop.py"
+    healthcheck: # Un healthcheck para indicar que el modelo inicial está generado
+      test: ["CMD-SHELL", "test -f /app/data/models/generic_activity_model.pkl && test -f /app/data/database/app_database.db"]
+      interval: 10s
+      timeout: 5s
+      retries: 50 # Suficientes reintentos para dar tiempo a la generación inicial
+      start_period: 30s # Tiempo inicial para que el script comience a ejecutarse
+
+
+  # Servicio del Trainer del Fog (para modelos personalizados)
+  fog_trainer:
+    build:
+      context: .
+      dockerfile: ./fog_node/Dockerfile
+    volumes:
+      - ./data:/app/data
+    # No hay 'networks' aquí
+    command: python fog_node/trainer.py
+    depends_on:
+      cloud_trainer:
+        condition: service_healthy # Depende de que el Cloud Trainer haya inicializado la DB y el modelo genérico.
+
+# Definición de volúmenes para persistencia de datos
+volumes:
+  data:
+    driver: local

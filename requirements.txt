@@ -1,0 +1,7 @@
+fastapi        # Para crear APIs web rápidas y eficientes
+uvicorn        # Servidor ASGI para ejecutar aplicaciones FastAPI
+pydantic       # Validación y manejo de datos usando modelos
+scikit-learn   # Algoritmos y utilidades de machine learning
+joblib         # Para guardar y cargar modelos de machine learning
+numpy          # Operaciones numéricas y manejo de arrays
+pandas         # Manipulación y análisis de datos en estructuras tipo DataFrame
