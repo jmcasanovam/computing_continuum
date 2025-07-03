@@ -1,4 +1,43 @@
 services:
+  # Servicio de la Base de Datos (PostgreSQL)
+  db:
+    image: postgres:13
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: mydatabase
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d mydatabase"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # Servicio del Trainer de la Cloud (para el modelo genérico)
+  cloud_trainer:
+    build:
+      context: .
+      dockerfile: ./cloud_node/Dockerfile
+    environment:
+      RETRAIN_INTERVAL_HOURS: ${RETRAIN_INTERVAL_HOURS} 
+    volumes:
+      - ./data/models:/app/data/models 
+    command: python -m scripts.run_cloud_trainer_init_and_loop
+    healthcheck:
+      test: ["CMD-SHELL", "test -f /app/data/models/generic_activity_model.pkl"]
+      interval: 10s
+      timeout: 5s
+      retries: 50
+      start_period: 30s
+    depends_on:
+      db:
+        condition: service_healthy
+
   # Servicio del Nodo Edge
   edge_service:
     build:
@@ -7,54 +46,32 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      # Monta la carpeta 'data' del host al '/app/data' dentro del contenedor.
-      # Esto permite que los modelos y la DB persistan y sean compartidos.
-      - ./data:/app/data
+      - ./data/models:/app/data/models
     environment:
       EDGE_NODE_ID: "edge_node_instance_1"
-      # Para la comunicación interna en la misma máquina Docker Compose,
-      # el Edge se conectará al host del servicio de la DB.
-      # Si la DB estuviera en un contenedor separado, aquí iría su nombre de servicio.
-      # Para SQLite, el Edge accede directamente al volumen.
-      # Para una DB externa, aquí iría la IP/hostname de la DB.
-    # No hay 'networks' aquí
     depends_on:
-      # Dependencia lógica para asegurar que el Cloud Trainer tiene la oportunidad
-      # de inicializar el modelo genérico y la DB antes de que el Edge lo use.
-      # Esto no implica que estén en la misma máquina o red de Docker.
       cloud_trainer:
-        condition: service_healthy # Esperar a que cloud_trainer esté "sano" (modelo inicializado)
+        condition: service_healthy
+      db:
+        condition: service_healthy
 
-  # Servicio del Trainer de la Cloud (para el modelo genérico)
-  cloud_trainer:
-    build:
-      context: .
-      dockerfile: ./cloud_node/Dockerfile
-    volumes:
-      - ./data:/app/data
-    command: python -m scripts.run_cloud_trainer_init_and_loop
-    healthcheck: # Un healthcheck para indicar que el modelo inicial está generado
-      test: ["CMD-SHELL", "test -f /app/data/models/generic_activity_model.pkl && test -f /app/data/database/app_database.db"]
-      interval: 10s
-      timeout: 5s
-      retries: 50 # Suficientes reintentos para dar tiempo a la generación inicial
-      start_period: 30s # Tiempo inicial para que el script comience a ejecutarse
-
-
-  # Servicio del Trainer del Fog (para modelos personalizados)
+  # Servicio del Trainer del Fog
   fog_trainer:
     build:
       context: .
       dockerfile: ./fog_node/Dockerfile
     volumes:
-      - ./data:/app/data
-    # No hay 'networks' aquí
+      # Si el fog_trainer también necesita acceso a los modelos entrenados,
+      # debe mapear la misma carpeta que el cloud_trainer.
+      - ./data/models:/app/data/models
+      # Si fog_trainer usa otros datos dentro de /app/data que no sean modelos,
+      # considera un volumen específico.
     command: python fog_node/trainer.py
     depends_on:
       cloud_trainer:
-        condition: service_healthy # Depende de que el Cloud Trainer haya inicializado la DB y el modelo genérico.
+        condition: service_healthy
+      db:
+        condition: service_healthy
 
-# Definición de volúmenes para persistencia de datos
 volumes:
-  data:
-    driver: local
+  db_data: # Este es para los datos persistentes de la base de datos PostgreSQL
