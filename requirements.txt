@@ -7,3 +7,4 @@ numpy          # Operaciones numéricas y manejo de arrays
 pandas         # Manipulación y análisis de datos en estructuras tipo DataFrame
 python-dotenv  # Cargar variables de entorno desde un archivo .env
 psycopg2-binary # Conector para PostgreSQL
+python-multipart # Para manejar archivos subidos en FastAPI

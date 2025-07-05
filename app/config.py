@@ -55,3 +55,14 @@ MIN_GLOBAL_SAMPLES_FOR_CLOUD_RETRAIN = int(os.getenv("MIN_GLOBAL_SAMPLES_FOR_CLO
 os.makedirs(MODELS_DIR, exist_ok=True)
 os.makedirs(USER_MODELS_DIR, exist_ok=True)
 os.makedirs(MESSAGE_QUEUE_DIR, exist_ok=True)
+
+# Configuración de RabbitMQ (desde .env)
+RABBITMQ_HOST = os.getenv("RABBITMQ_HOST")
+RABBITMQ_PORT = int(os.getenv("RABBITMQ_PORT", 5672)) # RabbitMQ default port
+RABBITMQ_USER = os.getenv("RABBITMQ_USER")
+RABBITMQ_PASS = os.getenv("RABBITMQ_PASS")
+RABBITMQ_QUEUE = os.getenv("RABBITMQ_QUEUE")
+
+# Configuración de Cloud API (desde .env)
+CLOUD_API_HOST = os.getenv("CLOUD_API_HOST")
+CLOUD_API_PORT = int(os.getenv("CLOUD_API_PORT", 5000)) # FastAPI default port

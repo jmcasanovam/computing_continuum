@@ -5,9 +5,9 @@ from datetime import datetime, timedelta
 import pandas as pd
 
 from app.models.ticwatch_predictor import TicWatchPredictor
-from app.data.database import get_user_data, update_user_model_mapping, insert_ticwatch_data, get_user_model_mapping, create_tables
+from app.data.database import get_user_data, update_user_model_mapping, insert_ticwatch_data, get_user_model_mapping
 from app.data.message_queue import consume_messages
-from app.config import FEATURE_COLUMNS, GENERIC_MODEL_PATH
+from app.config import FEATURE_COLUMNS
 from cloud_node.model_repository import ModelRepository
 
 # Umbral de datos para disparar el fine-tuning

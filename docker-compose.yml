@@ -3,9 +3,9 @@ services:
   db:
     image: postgres:13
     environment:
-      POSTGRES_USER: user
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: mydatabase
+      POSTGRES_USER: ${DB_USER} # De .env
+      POSTGRES_PASSWORD: ${DB_PASSWORD} # De .env
+      POSTGRES_DB: ${DB_NAME} # De .env
       PGDATA: /var/lib/postgresql/data/pgdata
     volumes:
       - db_data:/var/lib/postgresql/data
@@ -38,6 +38,36 @@ services:
       db:
         condition: service_healthy
 
+  # Servicio de cola de mensajes (RabbitMQ)
+  rabbitmq:
+    image: rabbitmq:3-management-alpine # Imagen con interfaz de gestión web
+    ports:
+      - "5672:5672"   # Puerto AMQP para clientes (Edge, Fog)
+      - "15672:15672" # Puerto de la interfaz de gestión web (http://localhost:15672)
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS}
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  # Cloud API (Servidor de Modelos)
+  cloud_api:
+    build:
+      context: .
+      dockerfile: ./cloud_node/Dockerfile # Asume el mismo Dockerfile que cloud_trainer
+    ports:
+      - "${CLOUD_API_PORT}:${CLOUD_API_PORT}" 
+    volumes:
+      - ./data/models:/app/data/models  
+    command: python -m cloud_node.api.main
+    depends_on:
+      cloud_trainer:
+        condition: service_healthy
+
   # Servicio del Nodo Edge
   edge_service:
     build:
@@ -54,23 +84,25 @@ services:
         condition: service_healthy
       db:
         condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      cloud_api:
+        condition: service_healthy
 
   # Servicio del Trainer del Fog
   fog_trainer:
     build:
       context: .
       dockerfile: ./fog_node/Dockerfile
-    volumes:
-      # Si el fog_trainer también necesita acceso a los modelos entrenados,
-      # debe mapear la misma carpeta que el cloud_trainer.
-      - ./data/models:/app/data/models
-      # Si fog_trainer usa otros datos dentro de /app/data que no sean modelos,
-      # considera un volumen específico.
     command: python fog_node/trainer.py
     depends_on:
       cloud_trainer:
         condition: service_healthy
       db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      cloud_api:
         condition: service_healthy
 
 volumes:
