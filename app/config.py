@@ -1,5 +1,5 @@
 import os
-from dotenv import load_dotenv # <--- ¡NUEVO!
+from dotenv import load_dotenv
 
 # Cargar variables de entorno desde el archivo .env
 # load_dotenv() buscará un archivo .env en el directorio actual o en los padres.

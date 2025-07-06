@@ -54,9 +54,14 @@ def create_tables():
                     ticwatchconnected BOOLEAN, -- <-- ¡AÑADE ESTA LÍNEA!
                     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
                 );
+                CREATE TABLE IF NOT EXISTS user_model_mapping (
+                user_id VARCHAR(255) PRIMARY KEY,
+                model_path VARCHAR(255) NOT NULL,
+                model_type VARCHAR(50) NOT NULL, -- 'generico' o 'personalizado'
+                last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
             """)
 
-            # ... (el resto de tus CREATE TABLE son los mismos) ...
         conn.commit()
         print("Tablas de la base de datos creadas/verificadas (PostgreSQL).", file=sys.stderr)
     except psycopg2.Error as e:
@@ -149,26 +154,23 @@ def get_all_training_data() -> pd.DataFrame:
         if conn:
             conn.close()
 
-def get_user_data(user_id: str, limit: Optional[int] = None) -> pd.DataFrame:
-    """Recupera datos de un usuario específico de la base de datos PostgreSQL."""
+def get_user_data(user_id: str) -> pd.DataFrame:
+    """Recupera datos de un usuario específico de la base de datos PostgreSQL con estado_real no nulo."""
     conn = get_db_connection()
     if conn is None:
         return pd.DataFrame()
     
     cols_to_select = ['timestamp'] + FEATURE_COLUMNS + ['estado_real']
-    query = f"SELECT {', '.join(cols_to_select)} FROM ticwatch_data WHERE user_id = %s"
-    
-    params = [user_id]
-    if limit:
-        query += f" ORDER BY timestamp DESC LIMIT %s"
-        params.append(limit)
+    query = f"SELECT {', '.join(cols_to_select)} FROM ticwatch_data WHERE user_id = %s AND estado_real IS NOT NULL ORDER BY timestamp ASC"
     
     try:
-        # pd.read_sql_query con psycopg2 y %s para parámetros
-        df = pd.read_sql_query(query, conn, params=tuple(params), parse_dates=['timestamp'])
+        print(f"Obteniendo datos de usuario {user_id} desde PostgreSQL...", file=sys.stderr)
+        df = pd.read_sql_query(query, conn, params=(user_id,), parse_dates=['timestamp'])
+        if df.empty:
+            print(f"No se encontraron datos etiquetados para el usuario {user_id}.", file=sys.stderr)
         return df
-    except Exception as e:
-        print(f"Error al obtener datos del usuario {user_id} de PostgreSQL: {e}", file=sys.stderr)
+    except psycopg2.Error as e:
+        print(f"ERROR al obtener datos de usuario {user_id} de PostgreSQL: {e}", file=sys.stderr)
         import traceback
         traceback.print_exc(file=sys.stderr)
         return pd.DataFrame()
@@ -176,57 +178,6 @@ def get_user_data(user_id: str, limit: Optional[int] = None) -> pd.DataFrame:
         if conn:
             conn.close()
 
-
-def update_user_checkpoint(user_id: str, timestamp: datetime, model_version: str, node_id: str):
-    """Actualiza el checkpoint de un usuario en PostgreSQL."""
-    conn = get_db_connection()
-    if conn is None:
-        return
-    try:
-        with conn.cursor() as cursor:
-            cursor.execute("""
-                INSERT INTO user_checkpoints (user_id, last_processed_timestamp, current_model_version, node_id, updated_at)
-                VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP)
-                ON CONFLICT (user_id) DO UPDATE SET
-                    last_processed_timestamp = EXCLUDED.last_processed_timestamp,
-                    current_model_version = EXCLUDED.current_model_version,
-                    node_id = EXCLUDED.node_id,
-                    updated_at = CURRENT_TIMESTAMP;
-            """, (user_id, timestamp, model_version, node_id)) # psycopg2 maneja datetime directamente
-        conn.commit()
-    except psycopg2.Error as e:
-        print(f"Error al actualizar checkpoint en PostgreSQL: {e}", file=sys.stderr)
-        import traceback
-        traceback.print_exc(file=sys.stderr)
-    finally:
-        if conn:
-            conn.close()
-
-def get_user_checkpoint(user_id: str) -> Optional[dict]:
-    """Recupera el último checkpoint de un usuario de PostgreSQL."""
-    conn = get_db_connection()
-    if conn is None:
-        return None
-    try:
-        with conn.cursor() as cursor:
-            cursor.execute("SELECT last_processed_timestamp, current_model_version, node_id FROM user_checkpoints WHERE user_id = %s", (user_id,))
-            row = cursor.fetchone()
-            if row:
-                # row[0] es last_processed_timestamp, ya será un objeto datetime
-                return {
-                    "last_processed_timestamp": row[0], # Ya es datetime de psycopg2
-                    "current_model_version": row[1],
-                    "node_id": row[2]
-                }
-            return None
-    except psycopg2.Error as e:
-        print(f"Error al obtener checkpoint de PostgreSQL: {e}", file=sys.stderr)
-        import traceback
-        traceback.print_exc(file=sys.stderr)
-        return None
-    finally:
-        if conn:
-            conn.close()
 
 def update_user_model_mapping(user_id: str, model_path: str, model_type: str):
     """Actualiza el mapeo de usuario a modelo activo en PostgreSQL."""
@@ -236,7 +187,7 @@ def update_user_model_mapping(user_id: str, model_path: str, model_type: str):
     try:
         with conn.cursor() as cursor:
             cursor.execute("""
-                INSERT INTO user_model_mapping (user_id, model_path, model_type, updated_at)
+                INSERT INTO user_model_mapping (user_id, model_path, model_type, last_updated)
                 VALUES (%s, %s, %s, CURRENT_TIMESTAMP)
                 ON CONFLICT (user_id) DO UPDATE SET
                     model_path = EXCLUDED.model_path,
@@ -253,19 +204,20 @@ def update_user_model_mapping(user_id: str, model_path: str, model_type: str):
         if conn:
             conn.close()
 
-def get_user_model_mapping(user_id: str) -> Optional[dict]:
+def get_user_model_mapping(user_id: str):
     """Recupera el mapeo de modelo para un usuario de PostgreSQL."""
     conn = get_db_connection()
     if conn is None:
         return None
     try:
         with conn.cursor() as cursor:
-            cursor.execute("SELECT model_path, model_type FROM user_model_mapping WHERE user_id = %s", (user_id,))
+            cursor.execute("SELECT model_path, model_type, last_updated FROM user_model_mapping WHERE user_id = %s", (user_id,))
             row = cursor.fetchone()
             if row:
                 return {
                     "model_path": row[0],
-                    "model_type": row[1]
+                    "model_type": row[1],
+                    "last_updated": row[2]
                 }
             return None
     except psycopg2.Error as e:

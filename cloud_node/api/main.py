@@ -7,7 +7,7 @@ from starlette.middleware.cors import CORSMiddleware
 
 # Importar desde el nuevo archivo de config (asumiendo que 'app' es un paquete ahora)
 from app.config import CLOUD_API_PORT #, CLOUD_API_HOST # CLOUD_API_HOST no se usa directamente aquí
-from cloud_node.api.routes import models
+from cloud_node.api.routes import models, data, users
 import os
 import sys
 
@@ -29,6 +29,10 @@ app.add_middleware(
 
 # Incluir las rutas de modelos
 app.include_router(models.router, prefix="/models", tags=["Models"])
+# Incluir las rutas de datos
+app.include_router(data.router, prefix="/data", tags=["Data"])
+# Incluir las rutas de usuarios
+app.include_router(users.router, prefix="/users", tags=["Users"])
 
 @app.get("/")
 async def root():
