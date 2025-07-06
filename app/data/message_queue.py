@@ -1,43 +1,86 @@
-import json
+import pika
 import os
-from app.config import MESSAGE_QUEUE_FILE
-import threading
+import json
+from app.config import RABBITMQ_HOST, RABBITMQ_PORT, RABBITMQ_USER, RABBITMQ_PASS, RABBITMQ_QUEUE
 
-# Asegurarse de que el directorio del archivo de la cola exista
-queue_dir = os.path.dirname(MESSAGE_QUEUE_FILE)
-os.makedirs(queue_dir, exist_ok=True)
 
-# Lock para asegurar que las operaciones de lectura/escritura en el archivo son seguras
-# en un entorno multithread/multiprocess (aunque solo simularemos un productor por ahora)
-queue_lock = threading.Lock()
-
-def _read_queue():
-    """Función interna para leer el contenido actual de la cola."""
-    if not os.path.exists(MESSAGE_QUEUE_FILE):
-        return []
-    with open(MESSAGE_QUEUE_FILE, 'r') as f:
-        try:
-            return json.load(f)
-        except json.JSONDecodeError:
-            return [] # Archivo vacío o corrupto
-
-def _write_queue(data):
-    """Función interna para escribir el contenido completo en la cola."""
-    with open(MESSAGE_QUEUE_FILE, 'w') as f:
-        json.dump(data, f, indent=2)
+def get_rabbitmq_connection():
+    """
+    Establece una conexión con RabbitMQ utilizando las credenciales del entorno.
+    Retorna el objeto de conexión si tiene éxito, None en caso contrario.
+    """
+    try:
+        credentials = pika.PlainCredentials(RABBITMQ_USER, RABBITMQ_PASS)
+        parameters = pika.ConnectionParameters(
+            host=RABBITMQ_HOST,
+            port=RABBITMQ_PORT,
+            credentials=credentials,
+            heartbeat=600 # Aumentar heartbeat para conexiones de larga duración
+        )
+        connection = pika.BlockingConnection(parameters)
+        return connection
+    except pika.exceptions.AMQPConnectionError as e:
+        print(f"ERROR: No se pudo conectar a RabbitMQ en {RABBITMQ_HOST}:{RABBITMQ_PORT}. Error: {e}", file=os.sys.stderr)
+        return None
+    except Exception as e:
+        print(f"ERROR inesperado al intentar conectar a RabbitMQ: {e}", file=os.sys.stderr)
+        return None
 
 def publish_message(message: dict):
-    """Publica un mensaje en la cola (añade al final)."""
-    with queue_lock:
-        queue_content = _read_queue()
-        queue_content.append(message)
-        _write_queue(queue_content)
-    # print(f"Mensaje publicado en la cola: {message.get('user_id')} - {message.get('timestamp')}")
+    """
+    Publica un mensaje en la cola de RabbitMQ.
+    El mensaje se serializa a JSON y se marca como persistente.
+    """
+    connection = None
+    try:
+        connection = get_rabbitmq_connection()
+        if connection:
+            channel = connection.channel()
+            # Declara la cola. durable=True asegura que la cola persiste si RabbitMQ se reinicia.
+            channel.queue_declare(queue=RABBITMQ_QUEUE, durable=True)
+            
+            # Publica el mensaje. delivery_mode=2 marca el mensaje como persistente.
+            channel.basic_publish(
+                exchange='', # Usamos el exchange por defecto
+                routing_key=RABBITMQ_QUEUE,
+                body=json.dumps(message),
+                properties=pika.BasicProperties(
+                    delivery_mode=pika.spec.PERSISTENT_DELIVERY_MODE
+                )
+            )
+            print(f"Mensaje publicado en RabbitMQ para user_id: {message.get('user_id', 'N/A')}")
+    except Exception as e:
+        print(f"ERROR al publicar mensaje en RabbitMQ: {e}", file=os.sys.stderr)
+    finally:
+        if connection:
+            connection.close()
 
-def consume_messages() -> list:
-    """Consume todos los mensajes de la cola (vacía el archivo)."""
-    with queue_lock:
-        queue_content = _read_queue()
-        _write_queue([]) # Vaciar la cola después de consumir
-    # print(f"Consumidos {len(queue_content)} mensajes de la cola.")
-    return queue_content
+def consume_messages():
+    """
+    Consume todos los mensajes disponibles actualmente en la cola de RabbitMQ.
+    Retorna una lista de diccionarios (mensajes JSON parseados).
+    """
+    messages = []
+    connection = None
+    try:
+        connection = get_rabbitmq_connection()
+        if connection:
+            channel = connection.channel()
+            channel.queue_declare(queue=RABBITMQ_QUEUE, durable=True)
+
+            # Usar basic_get para obtener todos los mensajes de una vez.
+            # auto_ack=True: los mensajes se eliminan de la cola automáticamente después de ser leídos.
+            while True:
+                method_frame, properties, body = channel.basic_get(queue=RABBITMQ_QUEUE, auto_ack=True)
+                if method_frame:
+                    messages.append(json.loads(body.decode('utf-8')))
+                else:
+                    # No hay más mensajes en la cola
+                    break
+            return messages
+    except Exception as e:
+        print(f"ERROR al consumir mensajes de RabbitMQ: {e}", file=os.sys.stderr)
+        return []
+    finally:
+        if connection:
+            connection.close()

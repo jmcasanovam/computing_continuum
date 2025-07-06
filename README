@@ -1,0 +1,7 @@
+# Computing Continuum
+
+
+## Comandos frecuentes:
+Para levantar construyendo los servicios de Docker (añadir los servicios que deseas levantar): docker compose up --build db cloud_trainer rabbitmq cloud_api
+Para parar los contenedores de Docker y los volúmenes: docker compose down -v
+Borrado de la carpeta data (contiene el modelo genérico y los modelos personalizados de los usuarios): rm -rf data
