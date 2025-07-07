@@ -5,7 +5,7 @@ from typing import Union
 
 class TicWatchData(BaseModel):
     session_id: str
-    timeStamp: datetime
+    timestamp: datetime
     tic_accx: float
     tic_accy: float
     tic_accz: float

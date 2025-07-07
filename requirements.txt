@@ -9,3 +9,4 @@ python-dotenv  # Cargar variables de entorno desde un archivo .env
 psycopg2-binary # Conector para PostgreSQL
 python-multipart # Para manejar archivos subidos en FastAPI
 requests       # Para hacer peticiones HTTP a la Cloud API
+pika           # Cliente para RabbitMQ

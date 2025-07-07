@@ -95,15 +95,16 @@ services:
       context: .
       dockerfile: ./fog_node/Dockerfile
     command: python fog_node/trainer.py
-    depends_on:
-      cloud_trainer:
-        condition: service_healthy
-      db:
-        condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
-      cloud_api:
-        condition: service_healthy
+    environment:
+      PYTHONPATH: /app
+
+
+  fog_tester:
+    build:
+      context: .
+      dockerfile: ./fog_node/Dockerfile
+    command: python -m scripts_de_prueba.insert_sample_data
+
 
 volumes:
   db_data: # Este es para los datos persistentes de la base de datos PostgreSQL

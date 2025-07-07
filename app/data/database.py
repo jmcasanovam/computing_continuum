@@ -5,6 +5,7 @@ from datetime import datetime
 import os
 from typing import Optional
 import sys # Importar sys para stderr
+import traceback
 
 
 def get_db_connection():
@@ -86,37 +87,34 @@ def insert_ticwatch_data(data: dict):
                 "tic_acclx", "tic_accly", "tic_acclz",
                 "tic_girx", "tic_giry", "tic_girz",
                 "tic_hrppg", "tic_step",
-                "predicted_state", "estado_real" # Asumiendo que ticwatchconnected no se inserta si no está en el dict
+                "predicted_state", "estado_real", "ticwatchconnected"
             ]
             
-            # Asegurarse de que 'timestamp' sea un objeto datetime para psycopg2
-            timestamp_val = data['timeStamp']
-            if isinstance(timestamp_val, str):
-                try:
-                    # Intenta parsear el formato que genera generate_initial_model
-                    timestamp_val = datetime.strptime(timestamp_val, '%Y-%m-%d %H:%M:%S')
-                except ValueError:
-                    print(f"WARNING: Formato de timestamp inesperado para '{timestamp_val}'. "
-                          "No se pudo parsear. Asegúrate de que el formato sea '%Y-%m-%d %H:%M:%S'.", file=sys.stderr)
-                    # En producción, esto podría ser un error fatal o requerir un manejo más sofisticado.
-                    return # No inserta el dato si el timestamp es inválido.
-            
-            # Aseguramos que todas las columnas en 'columns' estén presentes en 'data' o sean None
-            # También debemos manejar 'ticwatchconnected' si se va a insertar.
-            # Agregamos 'ticwatchconnected' si es necesario
-            if 'ticwatchconnected' in data and 'ticwatchconnected' not in columns:
-                columns.append('ticwatchconnected')
-
             values = []
             for col in columns:
-                if col == 'timestamp':
+                if col == "timestamp":
+                    # Asegurarse de que el timestamp es un objeto datetime
+                    timestamp_val = data.get('timeStamp') # Usar 'timeStamp' como en el dict de entrada
+                    if isinstance(timestamp_val, str):
+                        try:
+                            # Intentar parsear varios formatos comunes si es un string
+                            if 'T' in timestamp_val: # ISO format
+                                timestamp_val = datetime.fromisoformat(timestamp_val)
+                            else: # YYYY-MM-DD HH:MM:SS format
+                                timestamp_val = datetime.strptime(timestamp_val, '%Y-%m-%d %H:%M:%S')
+                        except ValueError:
+                            print(f"WARNING: Formato de timestamp inesperado para '{timestamp_val}'. "
+                                  "No se pudo parsear. Asegúrate de que el formato sea ISO o '%Y-%m-%d %H:%M:%S'.", file=sys.stderr)
+                            continue # Saltar este dato si el timestamp es inválido
                     values.append(timestamp_val)
-                elif col == 'ticwatchconnected':
-                    values.append(data.get(col, False)) # Default a False si no está
+                elif col == "ticwatchconnected":
+                    values.append(data.get(col, False)) # Default a False si no está presente
+                elif col == "predicted_state" or col == "estado_real":
+                    values.append(data.get(col, None)) # Asegurar que es None si no está presente
                 else:
                     values.append(data.get(col))
 
-            placeholders = ', '.join(['%s'] * len(columns)) # PostgreSQL usa %s para placeholders
+            placeholders = ', '.join(['%s'] * len(columns))
             
             cursor.execute(f"INSERT INTO ticwatch_data ({', '.join(columns)}) VALUES ({placeholders})", tuple(values))
         conn.commit()
@@ -160,15 +158,33 @@ def get_user_data(user_id: str) -> pd.DataFrame:
     if conn is None:
         return pd.DataFrame()
     
-    cols_to_select = ['timestamp'] + FEATURE_COLUMNS + ['estado_real']
-    query = f"SELECT {', '.join(cols_to_select)} FROM ticwatch_data WHERE user_id = %s AND estado_real IS NOT NULL ORDER BY timestamp ASC"
-    
     try:
-        print(f"Obteniendo datos de usuario {user_id} desde PostgreSQL...", file=sys.stderr)
-        df = pd.read_sql_query(query, conn, params=(user_id,), parse_dates=['timestamp'])
+        # --- INICIO DE CAMBIOS EN get_user_data ---
+        # Seleccionar explícitamente TODAS las columnas que puedan ser necesarias
+        # para FEATURE_COLUMNS, y también 'session_id', 'timestamp', 'estado_real', 'predicted_state', 'ticwatchconnected'
+        # para que Pandas tenga el DataFrame completo.
+        # Es mejor seleccionar todas las columnas del esquema de la tabla aquí.
+        query = f"""
+            SELECT
+                session_id, user_id, timestamp,
+                tic_accx, tic_accy, tic_accz,
+                tic_acclx, tic_accly, tic_acclz,
+                tic_girx, tic_giry, tic_girz,
+                tic_hrppg, tic_step,
+                predicted_state, estado_real, ticwatchconnected
+            FROM ticwatch_data
+            WHERE user_id = '{user_id}' AND estado_real IS NOT NULL
+            ORDER BY timestamp ASC;
+        """
+        
+        print(f"Obteniendo datos de usuario {user_id} desde PostgreSQL con query:\n{query}", file=sys.stderr) # Log de la query
+        df = pd.read_sql_query(query, conn, parse_dates=['timestamp'])
+        
         if df.empty:
             print(f"No se encontraron datos etiquetados para el usuario {user_id}.", file=sys.stderr)
+        print(f"DEBUG: Data retrieved from DB for {user_id} (first 5 rows):\n{df.head()}", file=sys.stderr) # Log de las primeras filas
         return df
+        # --- FIN DE CAMBIOS EN get_user_data ---
     except psycopg2.Error as e:
         print(f"ERROR al obtener datos de usuario {user_id} de PostgreSQL: {e}", file=sys.stderr)
         import traceback
@@ -192,7 +208,7 @@ def update_user_model_mapping(user_id: str, model_path: str, model_type: str):
                 ON CONFLICT (user_id) DO UPDATE SET
                     model_path = EXCLUDED.model_path,
                     model_type = EXCLUDED.model_type,
-                    updated_at = CURRENT_TIMESTAMP;
+                    last_updated = CURRENT_TIMESTAMP;
             """, (user_id, model_path, model_type))
         conn.commit()
         print(f"Mapeo de modelo para usuario {user_id} actualizado a {model_path} ({model_type}).", file=sys.stderr)

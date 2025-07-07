@@ -75,7 +75,7 @@ class CloudAPIClient:
             if data and "data" in data:
                 df = pd.DataFrame(data["data"])
                 if not df.empty:
-                    df['timeStamp'] = pd.to_datetime(df['timeStamp'])
+                    df['timestamp'] = pd.to_datetime(df['timestamp'])
                 print(f"Successfully fetched {len(df)} labeled data points for user {user_id}.")
                 return df
             return pd.DataFrame()

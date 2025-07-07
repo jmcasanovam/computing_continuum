@@ -34,9 +34,9 @@ def process_and_fine_tune_models():
 
     # Convertir mensajes a DataFrame de Pandas para fácil manipulación
     df_messages = pd.DataFrame(raw_messages)
-    # Convertir 'timeStamp' a datetime si no lo es ya
-    if 'timeStamp' in df_messages.columns:
-        df_messages['timeStamp'] = pd.to_datetime(df_messages['timeStamp'])
+    # Convertir 'timestamp' a datetime si no lo es ya
+    if 'timestamp' in df_messages.columns:
+        df_messages['timestamp'] = pd.to_datetime(df_messages['timestamp'])
     # Asegurarse de que 'user_id' es un string para las operaciones
     if 'user_id' in df_messages.columns:
         df_messages['user_id'] = df_messages['user_id'].astype(str)
@@ -134,6 +134,7 @@ def run_fog_trainer_loop(interval_seconds: int = 60):
 
 if __name__ == "__main__":
     # Necesario para cargar variables de entorno en el script
+    print("Fog Node Trainer: Starting...")
     from dotenv import load_dotenv
     load_dotenv()
     run_fog_trainer_loop(interval_seconds=30)
