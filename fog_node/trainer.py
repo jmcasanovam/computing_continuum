@@ -4,9 +4,10 @@ import os
 import pickle # Para serializar/deserializar modelos desde/hacia bytes
 from datetime import datetime, timedelta
 import pandas as pd
+import sys
 
 from app.models.ticwatch_predictor import TicWatchPredictor
-from app.data.message_queue import consume_messages
+from app.data.message_queue import consume_messages, INGEST_FOG_NOTIFICATION_QUEUE
 from app.config import FEATURE_COLUMNS
 from fog_node.cloud_api_client import CloudAPIClient
 
@@ -15,52 +16,48 @@ MIN_SAMPLES_FOR_FINE_TUNING = 20 # Número mínimo de nuevas muestras etiquetada
 
 def process_and_fine_tune_models():
     """
-    Procesa los mensajes de la cola, agrupa los datos por usuario
+    Procesa los mensajes de la cola de notificación, agrupa los datos por usuario
     y dispara el fine-tuning para usuarios con suficientes datos.
     """
-    print(f"[{datetime.now()}] Fog Trainer: Starting to consume messages...")
-
+    print(f"[{datetime.now()}] Fog Trainer: Starting to consume messages from '{INGEST_FOG_NOTIFICATION_QUEUE}'...", file=sys.stderr)
+    
     # Instanciar el cliente de la Cloud API
     cloud_api_client = CloudAPIClient()
 
-    # 1. Consumir todos los mensajes de la cola
-    raw_messages = consume_messages()
+    # 1. Consumir todos los mensajes de la cola de notificación
+    raw_notification_messages = consume_messages(INGEST_FOG_NOTIFICATION_QUEUE)
 
-    if not raw_messages:
-        print("No new messages in the queue. Waiting...")
+    if not raw_notification_messages:
+        print("No new notification messages in the queue. Waiting...", file=sys.stderr)
         return
 
-    print(f"[{datetime.now()}] Fog Trainer: Consumed {len(raw_messages)} messages.")
+    print(f"[{datetime.now()}] Fog Trainer: Consumed {len(raw_notification_messages)} notification messages.", file=sys.stderr)
 
-    # Convertir mensajes a DataFrame de Pandas para fácil manipulación
-    df_messages = pd.DataFrame(raw_messages)
-    # Convertir 'timestamp' a datetime si no lo es ya
-    if 'timestamp' in df_messages.columns:
-        df_messages['timestamp'] = pd.to_datetime(df_messages['timestamp'])
-    # Asegurarse de que 'user_id' es un string para las operaciones
-    if 'user_id' in df_messages.columns:
-        df_messages['user_id'] = df_messages['user_id'].astype(str)
-
-    # 2. Agrupar datos por usuario y filtrar los que tienen etiquetas de verdad
-    labeled_data = df_messages[df_messages['estado_real'].notna()]
-
-    if labeled_data.empty:
-        print("No new labeled data found in consumed messages. Waiting...")
+    # Los mensajes de notificación solo contienen user_id y timestamp.
+    # Extraer los user_id únicos de los mensajes de notificación
+    users_to_process = set()
+    for msg in raw_notification_messages:
+        user_id = msg.get('user_id')
+        if user_id:
+            users_to_process.add(user_id)
+    
+    if not users_to_process:
+        print("No valid user IDs found in notification messages. Waiting...", file=sys.stderr)
         return
 
-    users_with_new_labeled_data = labeled_data['user_id'].unique()
-    print(f"Users with new labeled data: {users_with_new_labeled_data}")
+    print(f"Users with new data to check for fine-tuning: {list(users_to_process)}", file=sys.stderr)
 
-    for user_id in users_with_new_labeled_data:
-        # Obtener todos los datos etiquetados para este usuario de la DB central a través de la Cloud API
-        print(f"User {user_id}: Fetching all labeled data from Cloud API...")
-        user_training_df = cloud_api_client.get_user_data_from_cloud(user_id) # Usar el cliente
+    for user_id in users_to_process: # Iterar sobre los user_id únicos
+        # 2. Obtener todos los datos etiquetados para este usuario de la DB central a través de la Cloud API
+        # La función get_user_data_from_cloud ya filtra por estado_real IS NOT NULL
+        print(f"User {user_id}: Fetching all labeled data from Cloud API...", file=sys.stderr)
+        user_training_df = cloud_api_client.get_user_data_from_cloud(user_id)
 
         if user_training_df.empty or len(user_training_df) < MIN_SAMPLES_FOR_FINE_TUNING:
-            print(f"User {user_id}: Not enough labeled data ({len(user_training_df)} samples) or data not fetched. Skipping fine-tuning.")
+            print(f"User {user_id}: Not enough labeled data ({len(user_training_df)} samples) or data not fetched. Skipping fine-tuning.", file=sys.stderr)
             continue
 
-        print(f"User {user_id}: Fine-tuning model with {len(user_training_df)} samples.")
+        print(f"User {user_id}: Fine-tuning model with {len(user_training_df)} samples.", file=sys.stderr)
 
         # Preparar datos para el entrenamiento
         X_user = user_training_df[FEATURE_COLUMNS]
@@ -71,27 +68,27 @@ def process_and_fine_tune_models():
         current_model_bytes = None
         
         # Primero, intentar descargar el modelo personalizado del usuario
-        print(f"User {user_id}: Checking for existing custom model in Cloud API...")
+        print(f"User {user_id}: Checking for existing custom model in Cloud API...", file=sys.stderr)
         current_model_bytes = cloud_api_client.download_model(user_id=user_id)
 
         if current_model_bytes:
-            print(f"User {user_id}: Loaded existing custom model from Cloud API.")
+            print(f"User {user_id}: Loaded existing custom model from Cloud API.", file=sys.stderr)
             predictor = TicWatchPredictor(model_bytes=current_model_bytes)
         else:
             # Si no hay modelo personalizado, descargar el modelo genérico
-            print(f"User {user_id}: No custom model found. Downloading generic model from Cloud API...")
+            print(f"User {user_id}: No custom model found. Downloading generic model from Cloud API...", file=sys.stderr)
             current_model_bytes = cloud_api_client.download_model(user_id=None) # Descargar genérico
 
             if current_model_bytes:
-                print(f"User {user_id}: Loaded generic model from Cloud API.")
+                print(f"User {user_id}: Loaded generic model from Cloud API.", file=sys.stderr)
                 predictor = TicWatchPredictor(model_bytes=current_model_bytes)
             else:
-                print(f"Error: Generic model not found in Cloud API. Cannot fine-tune for user {user_id}.")
+                print(f"Error: Generic model not found in Cloud API. Cannot fine-tune for user {user_id}.", file=sys.stderr)
                 continue # Saltar al siguiente usuario si no hay modelo genérico
 
         # Si el predictor no se pudo inicializar (ej. problemas con el modelo cargado)
         if predictor is None:
-            print(f"Error: Could not initialize predictor for user {user_id}.")
+            print(f"Error: Could not initialize predictor for user {user_id}.", file=sys.stderr)
             continue
 
         # 4. Realizar el fine-tuning
@@ -99,10 +96,9 @@ def process_and_fine_tune_models():
             predictor.train_model(X_user, y_user) # train_model de RandomForest re-entrena con los nuevos datos
 
             # 5. Serializar el modelo ajustado a bytes y subirlo a la Cloud API
-            # TicWatchPredictor debería tener un método para obtener el modelo subyacente
-            updated_model_bytes = pickle.dumps(predictor.model) # Asumiendo que predictor.model es el objeto de Scikit-learn
+            updated_model_bytes = pickle.dumps(predictor.model)
             
-            print(f"User {user_id}: Uploading fine-tuned model to Cloud API...")
+            print(f"User {user_id}: Uploading fine-tuned model to Cloud API...", file=sys.stderr)
             upload_success = cloud_api_client.upload_user_model(user_id, updated_model_bytes)
 
             if upload_success:
@@ -112,16 +108,19 @@ def process_and_fine_tune_models():
                     model_type="personalized"  # Tipo de modelo personalizado o genérico
                 )
                 if update_mapping_success:
-                    print(f"User {user_id}: Model mapping updated successfully in Cloud API.")
-                    print(f"User {user_id}: Fine-tuning and upload complete.")
+                    print(f"User {user_id}: Model mapping updated successfully in Cloud API.", file=sys.stderr)
+                    print(f"User {user_id}: Fine-tuning and upload complete.", file=sys.stderr)
                 else:
-                    print(f"User {user_id}: Failed to update model mapping in Cloud API.")
+                    print(f"User {user_id}: Failed to update model mapping in Cloud API.", file=sys.stderr)
                 
             else:
-                print(f"User {user_id}: Fine-tuning complete, but failed to upload model to Cloud API.")
+                print(f"User {user_id}: Fine-tuning complete, but failed to upload model to Cloud API.", file=sys.stderr)
 
         except Exception as e:
-            print(f"Error during fine-tuning/upload for user {user_id}: {e}")
+            print(f"Error during fine-tuning/upload for user {user_id}: {e}", file=sys.stderr)
+            import traceback
+            traceback.print_exc(file=sys.stderr)
+
 
 def run_fog_trainer_loop(interval_seconds: int = 60):
     """

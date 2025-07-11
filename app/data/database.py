@@ -80,6 +80,23 @@ def insert_ticwatch_data(data: dict):
         return
 
     try:
+        #Asegurarse de que el timestamp es un objeto datetime. Si viene como string ISO, convertirlo. Si viene como datetime, usarlo directamente.
+        timestamp_val = data.get('timestamp')
+        if isinstance(timestamp_val, str):
+            try:
+                # Intentar parsear varios formatos comunes si es un string
+                if 'T' in timestamp_val:  # Formato ISO
+                    timestamp_val = datetime.fromisoformat(timestamp_val)
+                else:  # Formato YYYY-MM-DD HH:MM:SS
+                    timestamp_val = datetime.strptime(timestamp_val, '%Y-%m-%d %H:%M:%S')
+            except ValueError:
+                print(f"WARNING: Formato de timestamp inesperado para '{timestamp_val}'. "
+                      "No se pudo parsear. Asegúrate de que el formato sea ISO o '%Y-%m-%d %H:%M:%S'.", file=sys.stderr)
+                return
+        elif not isinstance(timestamp_val, datetime):
+            print(f"WARNING: El valor de 'timestamp' debe ser un objeto datetime o un string ISO. Recibido: {type(timestamp_val)}", file=sys.stderr)
+            return
+        
         with conn.cursor() as cursor:
             columns = [
                 "session_id", "user_id", "timestamp",
@@ -93,19 +110,6 @@ def insert_ticwatch_data(data: dict):
             values = []
             for col in columns:
                 if col == "timestamp":
-                    # Asegurarse de que el timestamp es un objeto datetime
-                    timestamp_val = data.get('timeStamp') # Usar 'timeStamp' como en el dict de entrada
-                    if isinstance(timestamp_val, str):
-                        try:
-                            # Intentar parsear varios formatos comunes si es un string
-                            if 'T' in timestamp_val: # ISO format
-                                timestamp_val = datetime.fromisoformat(timestamp_val)
-                            else: # YYYY-MM-DD HH:MM:SS format
-                                timestamp_val = datetime.strptime(timestamp_val, '%Y-%m-%d %H:%M:%S')
-                        except ValueError:
-                            print(f"WARNING: Formato de timestamp inesperado para '{timestamp_val}'. "
-                                  "No se pudo parsear. Asegúrate de que el formato sea ISO o '%Y-%m-%d %H:%M:%S'.", file=sys.stderr)
-                            continue # Saltar este dato si el timestamp es inválido
                     values.append(timestamp_val)
                 elif col == "ticwatchconnected":
                     values.append(data.get(col, False)) # Default a False si no está presente

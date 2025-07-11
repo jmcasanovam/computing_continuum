@@ -8,6 +8,7 @@ import json
 import time
 import random
 import sys
+from app.data.message_queue import publish_data_message, EDGE_INGEST_QUEUE
 
 # Cargar variables de entorno desde .env
 load_dotenv()
@@ -23,7 +24,6 @@ RABBITMQ_HOST = os.getenv("RABBITMQ_HOST")
 RABBITMQ_PORT = int(os.getenv("RABBITMQ_PORT", 5672))
 RABBITMQ_USER = os.getenv("RABBITMQ_USER")
 RABBITMQ_PASS = os.getenv("RABBITMQ_PASS")
-RABBITMQ_QUEUE = os.getenv("RABBITMQ_QUEUE")
 
 def get_db_connection(retries=10, delay=5):
     """Establece una conexión a la DB desde el contenedor con reintentos."""
@@ -182,7 +182,7 @@ if __name__ == "__main__":
         "estado_real": "walking",
         "predicted_state": None
     }
-    publish_sample_message(sample_data_for_queue)
+    publish_data_message(sample_data_for_queue)
 
     sample_data_for_queue_2 = {
         "user_id": "user_test_fog",
@@ -203,7 +203,9 @@ if __name__ == "__main__":
         "estado_real": "running",
         "predicted_state": None
     }
-    publish_sample_message(sample_data_for_queue_2)
+
+    publish_data_message(sample_data_for_queue_2)
+    
 
     print("\nRevisa los logs del Fog Trainer. Debería procesar los mensajes e intentar el fine-tuning.")
     print("Si todo va bien, deberías ver que se han insertado los datos en la DB y se han publicado los mensajes en RabbitMQ.")

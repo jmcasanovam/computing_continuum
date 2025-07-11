@@ -68,6 +68,11 @@ services:
       cloud_trainer:
         condition: service_healthy
 
+  data_ingestor:
+    build:
+      context: .
+      dockerfile: ./data_ingestor/Dockerfile
+
   # Servicio del Nodo Edge
   edge_service:
     build:
@@ -75,19 +80,7 @@ services:
       dockerfile: ./edge_node/Dockerfile
     ports:
       - "8000:8000"
-    volumes:
-      - ./data/models:/app/data/models
-    environment:
-      EDGE_NODE_ID: "edge_node_instance_1"
-    depends_on:
-      cloud_trainer:
-        condition: service_healthy
-      db:
-        condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
-      cloud_api:
-        condition: service_healthy
+    
 
   # Servicio del Trainer del Fog
   fog_trainer:

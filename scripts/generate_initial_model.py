@@ -45,7 +45,7 @@ def generate_initial_model():
             data_point = {
                 "session_id": session_id,
                 "user_id": user_id,
-                "timeStamp": timestamp_str, # Usar el string formateado
+                "timestamp": timestamp_str, # Usar el string formateado
                 "tic_accx": random.uniform(-1, 1), # Valores aleatorios para las características
                 "tic_accy": random.uniform(-1, 1),
                 "tic_accz": random.uniform(-1, 1),
