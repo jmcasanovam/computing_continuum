@@ -5,3 +5,9 @@
 Para levantar construyendo los servicios de Docker (añadir los servicios que deseas levantar): docker compose up --build db cloud_trainer rabbitmq cloud_api
 Para parar los contenedores de Docker y los volúmenes: docker compose down -v
 Borrado de la carpeta data (contiene el modelo genérico y los modelos personalizados de los usuarios): rm -rf data
+
+### Ejemplo de ejecución para probar la parte de machine learning en los nodos cloud, fog y edge:
+docker compose up --build db cloud_trainer rabbitmq cloud_api
+docker compose up --build fog_trainer 
+docker compose up --build data_ingestor 
+docker compose up --build edge_service 
