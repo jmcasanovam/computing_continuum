@@ -7,7 +7,9 @@ nodes_status = {ip: {} for ip in NODE_IPS} # Diccionario para almacenar el estad
 
 def fetch_node_status(ip):
     try:
-        response = requests.get(f"http://{ip}:8000/status", timeout=2)
+        print("I'm gonna try to get the status of node:", ip)
+        print("Fetching status from:", f"http://{ip}:8003/status")
+        response = requests.get(f"http://{ip}:8003/status", timeout=5)
         if response.status_code == 200:
             data = response.json()
             if data.get("status") == "online":

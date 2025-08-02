@@ -1,14 +1,23 @@
-from fastapi import APIRouter, HTTPException
-from app.schemas.ticwatch_schema import TicWatchData
+from fastapi import APIRouter, HTTPException, status
+from app.schemas.ticwatch_schema import TicWatchData, TicWatchDataOrigin
 from app.models.ticwatch_predictor import TicWatchPredictor
 from app.data.database import get_user_model_mapping
 from datetime import datetime
+# from bson import ObjectId
+from edge_node.db.database import ticwatch_collection
+
 import asyncio
 import sys
 # Importar variables y funciones globales desde server.py
 from edge_node.server import user_predictors, cloud_api_client, publish_data_message_async
 
 router = APIRouter()
+
+# def serialize_document(doc):
+#     """Convierte ObjectId a string en documentos de MongoDB"""
+#     if "_id" in doc and isinstance(doc["_id"], ObjectId):
+#         doc["_id"] = str(doc["_id"])
+#     return doc
 
 @router.post("/{user_id}") # La ruta base es /predict_activity, definida en server.py
 async def predict_activity(user_id: str, data: TicWatchData):
@@ -84,3 +93,104 @@ async def predict_activity(user_id: str, data: TicWatchData):
     asyncio.create_task(publish_data_message_async(data_to_queue))
 
     return {"user_id": user_id, "predicted_activity": predicted_state, "timestamp": data.timestamp}
+
+@router.post("/api/datarecovery/data", status_code=status.HTTP_200_OK) 
+async def predict_activity(data: TicWatchDataOrigin):
+    """
+    Recibe datos del TicWatch para un usuario específico, predice la actividad
+    y envía los datos para almacenamiento centralizado.
+    """
+    user_id = data.user_id
+    if not user_id:
+        raise HTTPException(status_code=400, detail="User ID is required in the data payload.")
+    
+    if not data.ticwatchconnected:
+        raise HTTPException(status_code=400, detail="TicWatch is not connected. Cannot process data.")
+
+    print(f"Received data for user: {user_id} at timestamp: {data.timestamp}", file=sys.stderr)
+
+    # Insertar información en la colección TicWatch
+    data_dict = {
+        "session_id": data.session_id,
+        "timeStamp": data.timestamp.isoformat(),  # ← usa timestamp unificado
+        "tic_accx": data.tic_accx,
+        "tic_accy": data.tic_accy,
+        "tic_accz": data.tic_accz,
+        "tic_acclx": data.tic_acclx,
+        "tic_accly": data.tic_accly,
+        "tic_acclz": data.tic_acclz,
+        "tic_girx": data.tic_girx,
+        "tic_giry": data.tic_giry,
+        "tic_girz": data.tic_girz,
+        "tic_hrppg": data.tic_hrppg,
+        "tic_step": data.tic_step
+    }
+
+    try:
+        ticwatch_collection.insert_one(data_dict)
+        print(f"Data inserted into TicWatch collection for user {user_id}.", file=sys.stderr)
+    except Exception as e:
+        print(f"Error inserting data into TicWatch collection for user {user_id}: {e}", file=sys.stderr)
+        raise HTTPException(status_code=500, detail="Failed to insert data into database.")
+
+    # --- Cargar modelo ---
+    predictor = user_predictors.get(user_id)
+    model_type = None
+
+    if predictor is None:
+        user_mapping = get_user_model_mapping(user_id)
+        model_bytes = None
+
+        if user_mapping and user_mapping['model_path']:
+            model_type = user_mapping['model_type']
+            try:
+                model_bytes = cloud_api_client.download_model(user_id=user_id if model_type == "personalized" else None)
+                model_type = model_type if model_bytes else "generic"
+            except Exception as e:
+                print(f"Error loading model for user {user_id}: {e}. Falling back to generic.", file=sys.stderr)
+                model_bytes = cloud_api_client.download_model(user_id=None)
+                model_type = "generic"
+
+            if model_bytes:
+                predictor = TicWatchPredictor(model_bytes=model_bytes)
+                user_predictors[user_id] = predictor
+                print(f"Loaded {model_type} model for user {user_id}.", file=sys.stderr)
+            else:
+                raise HTTPException(status_code=500, detail=f"{model_type.capitalize()} model not found.")
+        else:
+            model_bytes = cloud_api_client.download_model(user_id=None)
+            model_type = "generic"
+            if model_bytes:
+                predictor = TicWatchPredictor(model_bytes=model_bytes)
+                user_predictors[user_id] = predictor
+                print(f"Loaded generic model for new user {user_id}.", file=sys.stderr)
+            else:
+                raise HTTPException(status_code=500, detail="Generic model not found.")
+
+    if predictor is None or predictor.model is None:
+        raise HTTPException(status_code=500, detail="Model could not be loaded for prediction.")
+
+    # --- Predicción ---
+    try:
+        predicted_state = predictor.predict(data)
+        print(f"Prediction for user {user_id} at {data.timestamp}: {predicted_state}", file=sys.stderr)
+    except Exception as e:
+        print(f"Error during prediction for user {user_id}: {e}", file=sys.stderr)
+        raise HTTPException(status_code=500, detail=f"Prediction failed: {e}")
+
+    # --- Enviar a cola ---
+    data_to_queue = data.model_dump()
+    data_to_queue['user_id'] = user_id
+    data_to_queue['predicted_state'] = predicted_state
+    data_to_queue['timestamp'] = data.timestamp.isoformat()
+    if "timeStamp" in data_to_queue:
+        del data_to_queue["timeStamp"]
+    print("Data to queue:", data_to_queue, file=sys.stderr)
+
+    asyncio.create_task(publish_data_message_async(data_to_queue))
+
+    return {
+        "user_id": user_id,
+        "predicted_activity": predicted_state,
+        "timestamp": data.timestamp
+    }

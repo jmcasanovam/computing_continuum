@@ -7,6 +7,13 @@ services:
     ports:
       - "8001:8000"
 
+  mapek:
+    build:
+      context: .
+      dockerfile: ./mapek/Dockerfile
+    ports:
+      - "8003:8003" # Puerto para la API de MAPE-K
+
   # Servicio de la Base de Datos (PostgreSQL)
   db:
     image: postgres:13

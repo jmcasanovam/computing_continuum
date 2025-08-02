@@ -55,6 +55,16 @@ app.add_event_handler("startup", initialize_edge_node)
 # Importar el router de rutas
 from edge_node.routes.activity import router as activity_router
 
+@app.get("/")
+def read_root():
+    return {"message": "API Nodo TICWATCH funcionando correctamente ✅"}
+
+@app.get("/health")
+def health_check():
+    return {"status": "ok"}
+
 # Incluir el router en la aplicación principal de FastAPI
-app.include_router(activity_router, prefix="/predict_activity", tags=["Activity Prediction"])
+# app.include_router(activity_router, prefix="/predict_activity", tags=["Activity Prediction"])
+app.include_router(activity_router, tags=["Activity Prediction"])
+
 

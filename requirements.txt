@@ -10,3 +10,4 @@ psycopg2-binary # Conector para PostgreSQL
 python-multipart # Para manejar archivos subidos en FastAPI
 requests       # Para hacer peticiones HTTP a la Cloud API
 pika           # Cliente para RabbitMQ
+pymongo        # Cliente para MongoDB
