@@ -1,4 +1,12 @@
 services:
+  # Servicio del manager
+  manager:
+    build:
+      context: ./manager_node
+      dockerfile: Dockerfile
+    ports:
+      - "8001:8000"
+
   # Servicio de la Base de Datos (PostgreSQL)
   db:
     image: postgres:13
