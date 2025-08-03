@@ -15,4 +15,4 @@ A la hora de usar Grafana, las credenciales se le pueden especificar en el archi
 5. Haz clic en Import
 
 
-Recordatorio: Hay que habilitar los puertos 9100 para Node Exporter, el 9417 para Docker Exporter y el 9090 para Prometheus
+Recordatorio: Hay que habilitar los puertos 9100 para Node Exporter y el 9090 para Prometheus

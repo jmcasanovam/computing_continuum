@@ -1,4 +1,5 @@
 import time
+import requests
 from typing import Optional, Dict, Any
 
 # --- Almacenamiento de Conocimiento del MAPE-K (simulado en memoria) ---
@@ -14,17 +15,40 @@ HEART_RATE_THRESHOLD = 100 # Umbral de frecuencia cardíaca para detectar irregu
 # de los datos de acelerómetro/giróscopo para ser significativo.
 MOVEMENT_IRREGULARITY_THRESHOLD = 50 # Umbral de irregularidad de movimiento
 
+PROMETHEUS_URL = "http://192.168.1.141:9090" # URL del servidor Prometheus
+
+def query_prometheus(metric: str) -> float:
+    """
+    Consulta Prometheus usando su API HTTP.
+    """
+    try:
+        response = requests.get(
+            f"{PROMETHEUS_URL}/api/v1/query",
+            params={"query": metric},
+            timeout=3
+        )
+        result = response.json()
+        return float(result['data']['result'][0]['value'][1])
+    except (requests.RequestException, KeyError, IndexError, ValueError):
+        return 0.0
+
 # --- Funciones del Bucle MAPE-K (Simplificado) ---
 def monitor(processed_data: Dict[str, Any], user_id: str) -> Dict[str, float]:
-    """
-    Monitoriza los datos procesados y el estado del sistema.
-    En una implementación real, aquí se recopilarían métricas de recursos del Edge
-    (CPU, memoria, latencia de red, etc.).
-    """
-    print(f"[{time.time()}] [MAPE-K - Monitor] Monitorizando datos para usuario {user_id}: {processed_data}")
-    # Simular métricas de uso de recursos del Edge (valores ficticios por ahora)
-    resource_usage = {"cpu_load": 0.5, "memory_usage": 0.3}
-    return resource_usage
+    print(f"[{time.time()}] [MAPE-K - Monitor] Obteniendo métricas reales desde Prometheus...")
+
+    cpu_usage_query = '100 - (avg by(instance) (irate(node_cpu_seconds_total{mode="idle"}[1m])) * 100)'
+    memory_usage_query = 'node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes'
+
+    cpu_usage = query_prometheus(cpu_usage_query)
+    memory_usage = query_prometheus(memory_usage_query)
+
+    print(f"[{time.time()}] [MAPE-K - Monitor] Métricas obtenidas: CPU={cpu_usage}, Memoria={memory_usage}")
+
+    return {
+        "cpu_load": cpu_usage,
+        "memory_usage": memory_usage,
+    }
+
 
 def analyze(processed_data: Dict[str, Any], resource_usage: Dict[str, float], user_id: str) -> tuple[Optional[str], list[str]]:
     """
