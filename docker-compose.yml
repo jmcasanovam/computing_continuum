@@ -26,12 +26,12 @@ services:
       - db_data:/var/lib/postgresql/data
     ports:
       - "5432:5432"
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U user -d mydatabase"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
+    # healthcheck:
+    #   test: ["CMD-SHELL", "pg_isready -U user -d mydatabase"]
+    #   interval: 5s
+    #   timeout: 5s
+    #   retries: 5
+    #   start_period: 10s
 
   # Servicio del Trainer de la Cloud (para el modelo genérico)
   cloud_trainer:
@@ -43,15 +43,15 @@ services:
     volumes:
       - ./data/models:/app/data/models 
     command: python -m scripts.run_cloud_trainer_init_and_loop
-    healthcheck:
-      test: ["CMD-SHELL", "test -f /app/data/models/generic_activity_model.pkl"]
-      interval: 10s
-      timeout: 5s
-      retries: 50
-      start_period: 30s
-    depends_on:
-      db:
-        condition: service_healthy
+    # healthcheck:
+    #   test: ["CMD-SHELL", "test -f /app/data/models/generic_activity_model.pkl"]
+    #   interval: 10s
+    #   timeout: 5s
+    #   retries: 50
+    #   start_period: 30s
+    # depends_on:
+    #   db:
+    #     condition: service_healthy
 
   # Servicio de cola de mensajes (RabbitMQ)
   rabbitmq:
@@ -62,12 +62,12 @@ services:
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS}
-    healthcheck:
-      test: ["CMD", "rabbitmq-diagnostics", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 20s
+    # healthcheck:
+    #   test: ["CMD", "rabbitmq-diagnostics", "ping"]
+    #   interval: 10s
+    #   timeout: 5s
+    #   retries: 5
+    #   start_period: 20s
 
   # Cloud API (Servidor de Modelos)
   cloud_api:
@@ -79,9 +79,9 @@ services:
     volumes:
       - ./data/models:/app/data/models  
     command: python -m cloud_node.api.main
-    depends_on:
-      cloud_trainer:
-        condition: service_healthy
+    # depends_on:
+    #   cloud_trainer:
+    #     condition: service_healthy
 
   data_ingestor:
     build:
@@ -123,9 +123,9 @@ services:
       - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
     ports:
       - "9090:9090"
-    depends_on:
-      - node-exporter
-      - docker-exporter
+    # depends_on:
+    #   - node-exporter
+    #   - docker-exporter
 
   # Servicio de Grafana
   grafana:
@@ -138,8 +138,8 @@ services:
     environment:
       - GF_SECURITY_ADMIN_USER=admin
       - GF_SECURITY_ADMIN_PASSWORD=admin
-    depends_on:
-      - prometheus
+    # depends_on:
+    #   - prometheus
 
   # Exportador de métricas del nodo
   node-exporter:
