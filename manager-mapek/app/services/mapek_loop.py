@@ -27,8 +27,8 @@ def analyze(resource_usage: Dict[str, Any]) -> Dict[str, Any]:
     anomalies = {}
 
     for ip, usage in resource_usage.items():
-        # Ejemplo: Si el uso de CPU supera el 90%
-        if usage.get("cpu_load", 0.0) > 90:
+        # Ejemplo: Si el uso de CPU supera el 50%
+        if usage.get("cpu_load", 0.0) > 50:
             anomalies[ip] = {
                 "action_needed": "scale_down",
                 "reason": f"Uso de CPU alto ({usage['cpu_load']:.2f}%)"
@@ -48,9 +48,9 @@ def plan(anomalies: Dict[str, Any]) -> Dict[str, Any]:
     plan_details = {}
     for ip, anomaly in anomalies.items():
         if anomaly.get("action_needed") == "restart_pod":
-            plan_details[ip] = {"type": "kubectl_command", "command": f"kubectl rollout restart deployment/edge-service-{ip}"}
+            plan_details[ip] = {"type": "kubectl_command", "command": f"kubectl rollout restart deployment/edge-service-deployment"}
         elif anomaly.get("action_needed") == "scale_down":
-            plan_details[ip] = {"type": "kubectl_command", "command": f"kubectl scale deployment/edge-service-{ip} --replicas=0"}
+            plan_details[ip] = {"type": "kubectl_command", "command": f"kubectl scale deployment/edge-service-deployment --replicas=0"}
     
     return plan_details
 
