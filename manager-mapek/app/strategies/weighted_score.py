@@ -8,10 +8,9 @@ class WeightedScoreStrategy(NodeSelectionStrategy):
                     load["cpu_load"] * 0.3 +
                     load["memory_usage"] * 0.2)
 
-        candidates = [
-            (ip, data) for ip, data in nodes_info
-            if data.get("status") == "online"
-        ]
-        if not candidates:
-            return None
-        return min(candidates, key=lambda item: score(item[1]))
+        # La lista nodes_info ya ha sido filtrada.
+        if not nodes_info:
+            return None # Si no hay candidatos, no hay nada que seleccionar
+        
+        # El min() seleccionará el nodo con la puntuación más baja
+        return min(nodes_info, key=lambda item: score(item[1]))

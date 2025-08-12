@@ -2,7 +2,7 @@ import time
 from typing import Optional, Dict, Any
 import requests
 from ..config import PROMETHEUS_URL
-from .node_monitor import nodes_status # Importamos el estado de los nodos
+from app.services.node_monitor import nodes_status # Importamos el estado de los nodos
 
 # --- Almacenamiento de Conocimiento del MAPE-K ---
 # En una implementación real, esto se guardaría en una base de datos.
