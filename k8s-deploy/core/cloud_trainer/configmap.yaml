@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cloud-trainer-config
+  namespace: core
+data:
+  RETRAIN_INTERVAL_HOURS: "1"

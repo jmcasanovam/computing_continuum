@@ -1,0 +1,44 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: data-ingestor
+  namespace: core
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: data-ingestor
+  template:
+    metadata:
+      labels:
+        app: data-ingestor
+    spec:
+      containers:
+        - name: data-ingestor
+          image: jmcasanovam/data_ingestor:v1.0
+          env:
+            - name: PYTHONPATH
+              value: "/app"
+            # Variables de conexión a RabbitMQ, necesarias para la comunicación
+            - name: RABBITMQ_HOST
+              value: "rabbitmq.core.svc.cluster.local"
+            - name: RABBITMQ_PORT
+              value: "5672"
+            - name: RABBITMQ_USER
+              value: "guest"
+            - name: RABBITMQ_PASSWORD
+              value: "guest"
+            # Variables de conexión a la Base de Datos
+            - name: DB_HOST
+              value: "db.core.svc.cluster.local"
+            - name: DB_USER
+              value: "user"
+            - name: DB_PASSWORD
+              value: "password"
+            - name: DB_NAME
+              value: "mydatabase"
+            # Variables de Cloud API
+            - name: CLOUD_API_HOST
+              value: "cloud-api.core.svc.cluster.local"
+            - name: CLOUD_API_PORT
+              value: "5000"

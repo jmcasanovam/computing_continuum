@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: cloud-api
+  namespace: core
+spec:
+  selector:
+    app: cloud-api
+  ports:
+    - protocol: TCP
+      port: 5000         # Puerto del servicio, para que los clientes se conecten
+      targetPort: 5000   # Puerto al que la app escucha dentro del pod

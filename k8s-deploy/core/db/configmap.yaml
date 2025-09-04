@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-config
+  namespace: core
+data:
+  POSTGRES_USER: "user"
+  POSTGRES_DB: "mydatabase"
+  PGDATA: "/var/lib/postgresql/data/pgdata"

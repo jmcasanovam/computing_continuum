@@ -1,0 +1,24 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: manager-mapek-cluster-role
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments", "deployments/scale",]
+    verbs: ["get", "list", "watch", "patch", "update"]
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: manager-mapek-cluster-rb
+subjects:
+  - kind: ServiceAccount
+    name: manager-mapek-sa
+    namespace: core
+roleRef:
+  kind: ClusterRole
+  name: manager-mapek-cluster-role
+  apiGroup: rbac.authorization.k8s.io

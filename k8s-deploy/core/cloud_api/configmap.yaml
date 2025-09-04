@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cloud-api-config
+  namespace: core
+data:
+  LOG_LEVEL: "INFO"

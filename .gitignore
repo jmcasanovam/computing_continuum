@@ -5,9 +5,7 @@ __pycache__/
 *.cache/
 .cache/
 
-# Ignore environment files
-.env
-.env.*
+
 
 # Other common ignores
 *.log

@@ -1,0 +1,46 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cloud-trainer
+  namespace: core
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cloud-trainer
+  template:
+    metadata:
+      labels:
+        app: cloud-trainer
+    spec:
+      containers:
+        - name: cloud-trainer
+          image: jmcasanovam/cloud_node:v1.1
+          command: ["python", "-m", "scripts.run_cloud_trainer_init_and_loop"]
+          envFrom:
+            - configMapRef:
+                name: cloud-trainer-config
+          env:
+            - name: DB_HOST
+              value: "db.core.svc.cluster.local"
+            - name: DB_USER
+              value: "user"
+            - name: DB_PASSWORD
+              value: "password"
+            - name: DB_NAME
+              value: "mydatabase"
+            - name: RABBITMQ_URL
+              value: "rabbitmq.core.svc.cluster.local"
+            - name: RABBITMQ_PORT
+              value: "5672"
+            - name: CLOUD_API_HOST
+              value: "cloud-api.core.svc.cluster.local"
+            - name: CLOUD_API_PORT
+              value: "5000"
+          volumeMounts:
+            - name: models-storage
+              mountPath: /app/data/models
+      volumes:
+        - name: models-storage
+          persistentVolumeClaim:
+            claimName: models-pvc

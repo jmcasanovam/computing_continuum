@@ -1,0 +1,47 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: edge-service
+  namespace: core
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: edge-service
+  template:
+    metadata:
+      labels:
+        app: edge-service
+    spec:
+      nodeSelector:
+        edge-service: "true" # Asegurarse que kubectl label nodes <nombre-del-nodo> edge-service=true
+      affinity:
+        podAntiAffinity: # Evitar que los pods se programen en el mismo nodo
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchExpressions:
+                  - key: app
+                    operator: In
+                    values:
+                      - edge-service
+              topologyKey: "kubernetes.io/hostname"
+      containers:
+        - name: edge-service
+          image: jmcasanovam/edge_node:v1.0
+          ports:
+            - containerPort: 8000
+          env:
+            - name: PYTHONPATH
+              value: "/app"
+            - name: RABBITMQ_HOST
+              value: "rabbitmq.core.svc.cluster.local"
+            - name: RABBITMQ_PORT
+              value: "5672"
+            - name: RABBITMQ_USER
+              value: "guest"
+            - name: RABBITMQ_PASSWORD
+              value: "guest"
+            - name: CLOUD_API_HOST
+              value: "cloud-api.core.svc.cluster.local"
+            - name: CLOUD_API_PORT
+              value: "5000"

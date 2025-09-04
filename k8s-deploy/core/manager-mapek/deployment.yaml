@@ -1,0 +1,25 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: manager-mapek
+  namespace: core
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: manager-mapek
+  template:
+    metadata:
+      labels:
+        app: manager-mapek
+    spec:
+      serviceAccountName: manager-mapek-sa
+      containers:
+        - name: manager-mapek
+          image: jmcasanovam/manager-mapek:v1.5
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8001
+          envFrom:
+            - configMapRef:
+                name: manager-mapek-config

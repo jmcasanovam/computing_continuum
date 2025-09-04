@@ -1,0 +1,13 @@
+# This file is part of the Kubernetes deployment for Grafana in the monitoring namespace.
+# It defines a PersistentVolumeClaim for Grafana to store its data.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: grafana-pvc
+  namespace: monitoring
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi

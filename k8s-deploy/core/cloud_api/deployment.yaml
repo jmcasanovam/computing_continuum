@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cloud-api
+  namespace: core
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cloud-api
+  template:
+    metadata:
+      labels:
+        app: cloud-api
+    spec:
+      containers:
+        - name: cloud-api
+          image: jmcasanovam/cloud_node:v1.1
+          command: ["python", "-m", "cloud_node.api.main"]
+          ports:
+            - containerPort: 5000
+          env:
+            # Conexión a la base de datos
+            - name: DB_HOST
+              value: "db.core.svc.cluster.local"
+            - name: DB_USER
+              value: "user"
+            - name: DB_PASSWORD
+              value: "password"
+            - name: DB_NAME
+              value: "mydatabase"
+            # Conexión a RabbitMQ
+            - name: RABBITMQ_HOST
+              value: "rabbitmq.core.svc.cluster.local"
+            - name: RABBITMQ_PORT
+              value: "5672"
+            - name: RABBITMQ_USER
+              value: "guest"
+            - name: RABBITMQ_PASSWORD
+              value: "guest"
+            - name: CLOUD_API_HOST
+              value: "0.0.0.0"
+            - name: CLOUD_API_PORT
+              value: "5000"
+          volumeMounts:
+            - name: models-storage
+              mountPath: /app/data/models
+      volumes:
+        - name: models-storage
+          persistentVolumeClaim:
+            claimName: models-pvc

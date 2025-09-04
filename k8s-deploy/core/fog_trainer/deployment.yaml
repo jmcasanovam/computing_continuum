@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fog-trainer
+  namespace: core
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: fog-trainer
+  template:
+    metadata:
+      labels:
+        app: fog-trainer
+    spec:
+      containers:
+        - name: fog-trainer
+          image: jmcasanovam/fog_node:v1.0
+          command: ["python", "fog_node/trainer.py"]
+          env:
+            - name: PYTHONPATH
+              value: "/app"
+            # Conexión a la base de datos
+            - name: CLOUD_API_HOST
+              value: "cloud-api.core.svc.cluster.local"
+            - name: CLOUD_API_PORT
+              value: "5000"
+            - name: DB_USER
+              value: "user"
+            - name: DB_PASSWORD
+              value: "password"
+            - name: DB_NAME
+              value: "mydatabase"
+            # Configuración de RABBITMQ
+            - name: RABBITMQ_HOST
+              value: "rabbitmq.core.svc.cluster.local"
+            - name: RABBITMQ_PORT
+              value: "5672"
