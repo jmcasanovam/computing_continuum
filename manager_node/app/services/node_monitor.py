@@ -2,6 +2,7 @@ import threading
 import time
 import requests
 from app.config import NODE_IPS
+from app.main import active_users_per_node, user_count_lock
 
 nodes_status = {ip: {} for ip in NODE_IPS} # Diccionario para almacenar el estado de cada nodo
 
@@ -22,6 +23,13 @@ def monitor_nodes():
     while True:
         for ip in NODE_IPS:
             nodes_status[ip] = fetch_node_status(ip)
+        with user_count_lock:
+            # Actualiza el conteo de usuarios para cada nodo en el estado
+            for ip in list(nodes_status.keys()):
+                if ip in active_users_per_node:
+                    nodes_status[ip]["current_load"]["active_users_count"] = active_users_per_node[ip]
+                else:
+                    nodes_status[ip]["current_load"]["active_users_count"] = 0
         time.sleep(5)
 
 def start_monitoring():
