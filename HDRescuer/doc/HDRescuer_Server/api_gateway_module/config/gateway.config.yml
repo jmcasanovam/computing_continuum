@@ -1,0 +1,104 @@
+http:
+  port: 8080
+
+admin:
+  port: 9876
+  host: localhost
+
+apiEndpoints:
+  users:
+    host: '192.168.1.141'
+    paths: 
+      - '/api/auth/*'
+      - '/api/users/*'
+
+  datarecovery:
+    host: '192.168.1.141'
+    paths:
+      - '/api/datarecovery/*'   
+
+  sessions:
+    host: '192.168.1.141'
+    paths:
+      - '/api/sessions/*'
+
+  apicomposer:
+    host: '192.168.1.141'
+    paths:
+      - '/api/apicomposer/*'
+
+  available-node:
+    host: '192.168.1.141'
+    paths:
+      - '/api/available-node/*'
+
+serviceEndpoints:
+  userssrv:
+    url: 'http://192.168.1.141:8081'
+  datarecoverysrv:
+    url: 'http://192.168.1.141:8082'
+  sessionssrv:
+    url: 'http://192.168.1.141:8083'
+  apicomposersrv:
+    url: 'http://192.168.1.141:8084'
+  available-nodesrv:
+    url: 'http://192.168.1.141:8000'
+
+policies:
+  - basic-auth
+  - cors
+  - expression
+  - key-auth
+  - log
+  - oauth2
+  - proxy
+  - rate-limit
+
+pipelines:
+  default:
+    apiEndpoints:
+      - users
+    policies:
+      - proxy:
+          - action:
+              serviceEndpoint: userssrv 
+              changeOrigin: true
+  userspln:
+    apiEndpoints:
+      - users
+    policies:
+      - proxy:
+          - action:
+              serviceEndpoint: userssrv
+  datarecoverypln:
+    apiEndpoints:
+      - datarecovery
+    policies:
+      - proxy:
+          - action:
+              serviceEndpoint: datarecoverysrv  
+  sessionspln:
+    apiEndpoints:
+      - sessions
+    policies:
+      - proxy:
+          - action:
+              serviceEndpoint: sessionssrv    
+  apicomposerpln:
+    apiEndpoints:
+      - apicomposer
+    policies:
+      - proxy:
+          - action:
+              serviceEndpoint: apicomposersrv      
+  available-nodepln:
+    apiEndpoints:
+      - available-node
+    policies:
+      - log:
+          action:
+            message: "Petición recibida en API Gateway para /api/available-node"
+      - proxy:
+          action:
+            serviceEndpoint: available-nodesrv
+            changeOrigin: true
